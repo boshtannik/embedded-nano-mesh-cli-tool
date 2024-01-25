@@ -168,9 +168,9 @@ fn main() {
 
 #[derive(Parser, Debug)]
 #[clap(
-    name = "program",
+    name = "Nano mesh CLI communication tool",
     version = "1.0",
-    author = "Your Name <you@example.com>"
+    author = "Boshtannik <boshtannik@gmail.com>"
 )]
 enum Command {
     Send(SendArgs),
