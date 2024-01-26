@@ -3,59 +3,25 @@ use embedded_nano_mesh::*;
 use platform_millis_linux::*;
 use platform_serial_linux::*;
 
-// This program should do next.
-// It can be called for one of next purposes:
-// 1 - To simply send message, and hang for a timeout, to let the message to be sent.
-// 2 - To receive message and hang for a timeout, to let the message to be received.
-// 3 - To send message using ping-pong method, and wait for some timeout. Also this use case shall return operation code, that
-//   indicates wether the response was received or not.
-// 4 - To send message using transaction method, and wait for some timeout. Also this use case shall return operation code, that
-//   indicates wether the transaction was successful or not.
-// It shall be called as command line tool.
-// Use cases:
-//
-// // simple message sending. Send message to address 2, and hang for 250ms in update loop.
-// program \
-// --current-address=1 \
-// --to-address=2 \
-// --listen-period=250 \
-// --send-content="Hello, World!" \
-// --timeout=250
-// This will set node address to 1, listen period to 250ms, send "Hello, World!" to device address 2, and loop 250ms, and then exits with return code Ok.
-//
-// // ping-pong message sending. Send message to address 2, and hang for 2000 ms of timeout waiting
-// for response. In case of pong packet was received - returns Ok code.
-// program \
-// --current-address=1 \
-// --to-address=2
-// --listen-period=250 \
-// --timeout=2000 \
-// --ping-content="Hello, World!" \
-// This will set node address to 1, listen period to 250ms, send ping-pong type message "Hello, World!" to device address 2, and in case of pong packet was received - returns Ok code.
-//
-// // transaction message sending. Send message to address 2, and hang for 3000 ms of timeout waiting
-// for transaction to be finished. In case of transaction being finished good - returns Ok code.
-// program \
-// --current-address=1 \
-// --to-address=2 \
-// --listen-period=250 \
-// --transaction="Hello, World!" \
-// This will set node address to 1, listen period to 250ms, send transaction type message "Hello, World!" to device address 2, and in case of transaction being finished good - returns Ok code.
-//
-// // Receive message. Receive message to this devide. Hang for 3000 ms of timeout waiting
-// for message. In case of message was received - returns Ok code.
-// program \
-// --current-address=1 \
-// --listen-period=3000 \
-// --timeout=3000
-// This will set node address to 1, listen period to 3000ms, and in case of message was received - returns Ok code.
-//
+const FILTER_OUT_DUPLICATION_HELP_MSG: &str = "Tells to all devices within the network to ignore this packet if it has already been received. The purpose of it is to reduce the amount of traffic.";
+const LIFETIME_HELP_MSG: &str = "Tells how many nodes the packet will be able to pass.";
+const SPEC_OPERATION_TIMEOUT_HELP_MSG: &str =
+    "Tells how long the node will listen for the response.";
+const SEND_TIMEOUT_HELP_MSG: &str =
+    "Tells for how long the node will update itself to send the packet from it's internal queues.";
+const SEND_CONTENT_HELP_MSG: &str = "Content to send.";
+const TO_ADDRESS_HELP_MSG: &str = "To address.";
+const FROM_ADDRESS_HELP_MSG: &str = "From address.";
+const LISTEN_PERIOD_HELP_MSG: &str = "Each device listens for this period of time before speaking. This parameter configures for how long the device will listen.";
+const RECEIVE_TIMEOUT_HELP_MSG: &str = "Each device listens for this period of time trying to receiving. This parameter configures for how long the device will listen.";
+const PING_CONTENT_HELP_MSG: &str = "Content to send with ping packet.";
+const TRANSACTION_CONTENT_HELP_MSG: &str = "Content to send with transaction packet.";
+const CURRENT_ADDRESS_HELP_MSG: &str =
+    "Address of current device, which has to receive the message.";
 
 fn main() {
     let command = Command::parse();
 
-    // Configuration of serial port, which will be used for communication
-    // with radio modem
     configure_serial(
         "/dev/ttyUSB0".to_string(),
         PortSettings {
@@ -69,7 +35,6 @@ fn main() {
 
     match command {
         Command::Send(args) => {
-            // Initialization of mesh node.
             let mut node = Node::new(NodeConfig {
                 device_address: args.from_address as AddressType,
                 listen_period: args.listen_period as ms,
@@ -87,14 +52,12 @@ fn main() {
             loop {
                 let current_time = LinuxTime::millis();
                 if current_time >= exit_time {
-                    break;
+                    std::process::exit(0);
                 }
                 let _ = node.update::<LinuxTime, LinuxSerial>();
             }
         }
         Command::Receive(args) => {
-            // Handle receive command
-            // Initialization of mesh node.
             let mut node = Node::new(NodeConfig {
                 device_address: args.current_address as AddressType,
                 listen_period: args.listen_period as ms,
@@ -105,7 +68,7 @@ fn main() {
             loop {
                 let current_time = LinuxTime::millis();
                 if current_time >= exit_time {
-                    break;
+                    std::process::exit(1);
                 }
 
                 let _ = node.update::<LinuxTime, LinuxSerial>();
@@ -122,46 +85,43 @@ fn main() {
                             .map(|character| character as char)
                             .collect::<String>()
                     );
+                    std::process::exit(0);
                 }
             }
         }
         Command::Ping(args) => {
-            // Initialization of mesh node.
             let mut node = Node::new(NodeConfig {
                 device_address: args.from_address as AddressType,
                 listen_period: args.listen_period as ms,
             });
 
-            // Handle ping command
-            // example of ping-pong like packet send. Similar to ping, but makes the receiver respond with
-            // pong with same content. Successful response will tell, that receiver has received the message
-            let _ = node.send_ping_pong::<LinuxTime, LinuxSerial>(
-                NodeString::from(args.ping_content.as_str()).into_bytes(), // This is the message to be sent
-                args.to_address as AddressType, // This is address of the device, which will receive the message
-                args.lifetime as LifeTimeType, // This is life time of the message. Indicates how many hops the message will make
-                args.filter_out_duplication, // This is flag, that indicates, if the devices of the network should ignore duplication of the message by other nodes.
-                args.timeout as ms,          // This is the period of the ping-pong message
-            );
+            match node.send_ping_pong::<LinuxTime, LinuxSerial>(
+                NodeString::from(args.ping_content.as_str()).into_bytes(),
+                args.to_address as AddressType,
+                args.lifetime as LifeTimeType,
+                args.filter_out_duplication,
+                args.timeout as ms,
+            ) {
+                Ok(_) => std::process::exit(0),
+                Err(_) => std::process::exit(1),
+            }
         }
         Command::Transaction(args) => {
-            // Handle transaction command
-            // Initialization of mesh node.
             let mut node = Node::new(NodeConfig {
                 device_address: args.from_address as AddressType,
                 listen_period: args.listen_period as ms,
             });
 
-            // example of transaction like packet send.
-            // This will make the receiver respond with finish transaction with same content.
-            // Successful response will tell, that receiver has received the message, and reacted on it
-            // only once.
-            let _ = node.send_with_transaction::<LinuxTime, LinuxSerial>(
+            match node.send_with_transaction::<LinuxTime, LinuxSerial>(
                 NodeString::from(args.transaction_content.as_str()).into_bytes(),
                 args.to_address as AddressType,
                 args.lifetime as LifeTimeType,
                 args.filter_out_duplication,
                 args.timeout as ms,
-            );
+            ) {
+                Ok(_) => std::process::exit(0),
+                Err(_) => std::process::exit(1),
+            }
         }
     }
 }
@@ -185,18 +145,18 @@ struct SendArgs {
         short = 'f',
         long = "from-address",
         required = true,
-        help = "From address"
+        help = FROM_ADDRESS_HELP_MSG
     )]
     from_address: AddressType,
 
-    #[clap(short = 't', long = "to-address", required = true, help = "To address")]
+    #[clap(short = 't', long = "to-address", required = true, help = TO_ADDRESS_HELP_MSG)]
     to_address: AddressType,
 
     #[clap(
         short = 'l',
         long = "listen-period",
         required = true,
-        help = "Listen period in ms, during which this device will be listening for packets before speaking"
+        help = LISTEN_PERIOD_HELP_MSG
     )]
     listen_period: ms,
 
@@ -204,18 +164,18 @@ struct SendArgs {
         short = 's',
         long = "send-content",
         required = true,
-        help = "Content to send"
+        help = SEND_CONTENT_HELP_MSG
     )]
     send_content: NodeString,
 
-    #[clap(short = 'o', long = "timeout", required = true, help = "Timeout in ms")]
+    #[clap(short = 'o', long = "timeout", required = true, help = SEND_TIMEOUT_HELP_MSG)]
     timeout: ms,
 
     #[clap(
         short = 'd',
         long = "filter-out-duplication",
         required = true,
-        help = "Says if devices of the network should ignore duplication of the message by other nodes."
+        help = FILTER_OUT_DUPLICATION_HELP_MSG
     )]
     filter_out_duplication: bool,
 
@@ -223,7 +183,7 @@ struct SendArgs {
         short = 'l',
         long = "lifetime",
         required = true,
-        help = "Lifetime, tells how many hops the message will make"
+        help = LIFETIME_HELP_MSG
     )]
     lifetime: LifeTimeType,
 }
@@ -234,7 +194,7 @@ struct ReceiveArgs {
         short = 'a',
         long = "current-address",
         required = true,
-        help = "Current address"
+        help = CURRENT_ADDRESS_HELP_MSG
     )]
     current_address: AddressType,
 
@@ -242,11 +202,11 @@ struct ReceiveArgs {
         short = 'l',
         long = "listen-period",
         required = true,
-        help = "Listen period in ms, during which this device will be listening for packets before speaking"
+        help = LISTEN_PERIOD_HELP_MSG
     )]
     listen_period: ms,
 
-    #[clap(short = 'o', long = "timeout", required = true, help = "Timeout in ms")]
+    #[clap(short = 'o', long = "timeout", required = true, help = RECEIVE_TIMEOUT_HELP_MSG)]
     timeout: ms,
 }
 
@@ -256,18 +216,18 @@ struct PingArgs {
         short = 'f',
         long = "from-address",
         required = true,
-        help = "From address"
+        help = FROM_ADDRESS_HELP_MSG
     )]
     from_address: AddressType,
 
-    #[clap(short = 't', long = "to-address", required = true, help = "To address")]
+    #[clap(short = 't', long = "to-address", required = true, help = TO_ADDRESS_HELP_MSG)]
     to_address: AddressType,
 
     #[clap(
         short = 'l',
         long = "listen-period",
         required = true,
-        help = "Listen period in ms, during which this device will be listening for packets before speaking"
+        help = LISTEN_PERIOD_HELP_MSG
     )]
     listen_period: ms,
 
@@ -275,18 +235,18 @@ struct PingArgs {
         short = 'p',
         long = "ping-content",
         required = true,
-        help = "Content to send"
+        help = PING_CONTENT_HELP_MSG
     )]
     ping_content: NodeString,
 
-    #[clap(short = 'o', long = "timeout", required = true, help = "Timeout in ms")]
+    #[clap(short = 'o', long = "timeout", required = true, help = SPEC_OPERATION_TIMEOUT_HELP_MSG)]
     timeout: ms,
 
     #[clap(
         short = 'd',
         long = "filter-out-duplication",
         required = true,
-        help = "Says if devices of the network should ignore duplication of the message by other nodes."
+        help = FILTER_OUT_DUPLICATION_HELP_MSG
     )]
     filter_out_duplication: bool,
 
@@ -294,7 +254,7 @@ struct PingArgs {
         short = 'l',
         long = "lifetime",
         required = true,
-        help = "Lifetime, tells how many hops the message will make"
+        help = LIFETIME_HELP_MSG
     )]
     lifetime: LifeTimeType,
 }
@@ -305,37 +265,37 @@ struct TransactionArgs {
         short = 'f',
         long = "from-address",
         required = true,
-        help = "From address"
+        help = FROM_ADDRESS_HELP_MSG
     )]
     from_address: AddressType,
 
-    #[clap(short = 't', long = "to-address", required = true, help = "To address")]
+    #[clap(short = 't', long = "to-address", required = true, help = TO_ADDRESS_HELP_MSG)]
     to_address: AddressType,
 
     #[clap(
         short = 'l',
         long = "listen-period",
         required = true,
-        help = "Listen period in ms, during which this device will be listening for packets before speaking"
+        help = LISTEN_PERIOD_HELP_MSG
     )]
     listen_period: ms,
 
     #[clap(
         short = 'r',
-        long = "transaction",
+        long = "transaction-content",
         required = true,
-        help = "Content to send"
+        help = TRANSACTION_CONTENT_HELP_MSG
     )]
     transaction_content: NodeString,
 
-    #[clap(short = 'o', long = "timeout", required = true, help = "Timeout in ms")]
+    #[clap(short = 'o', long = "timeout", required = true, help = SPEC_OPERATION_TIMEOUT_HELP_MSG)]
     timeout: ms,
 
     #[clap(
         short = 'd',
         long = "filter-out-duplication",
         required = true,
-        help = "Says if devices of the network should ignore duplication of the message by other nodes."
+        help = FILTER_OUT_DUPLICATION_HELP_MSG
     )]
     filter_out_duplication: bool,
 
@@ -343,7 +303,7 @@ struct TransactionArgs {
         short = 'l',
         long = "lifetime",
         required = true,
-        help = "Lifetime, tells how many hops the message will make"
+        help = LIFETIME_HELP_MSG
     )]
     lifetime: LifeTimeType,
 }
