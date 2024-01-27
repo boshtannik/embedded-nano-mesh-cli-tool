@@ -39,7 +39,6 @@ pub struct PingArgs {
     #[clap(
         short = 'd',
         long = "filter-out-duplication",
-        required = true,
         help = constants::FILTER_OUT_DUPLICATION_HELP_MSG
     )]
     pub filter_out_duplication: bool,
