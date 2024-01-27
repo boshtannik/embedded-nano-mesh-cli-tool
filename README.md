@@ -1,5 +1,5 @@
 ## CLI tool for embedded-nano-mesh protocol
-This tool provides communication interface between linux CLI interface and mesh network
+This tool provides communication interface between linux CLI interface and embedded nano mesh network
 
 # Use cases
 It allows to:
