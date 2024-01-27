@@ -8,6 +8,13 @@ It allows to:
 * Send message with transaction, which forces receiver to reply, about the operation being done.
 * Receive the message from network
 
+# Installation
+1. Get rust from official site. You can use this command: ```curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh```
+2. Clone this repo with: ```git clone https://github.com/boshtannik/nano-mesh-cli-tool.git```
+3. Enter into nano-mesh-cli-tool: ```cd nano-mesh-cli-tool```
+4. Build it by run: ```cargo build --release && cp target/release/nano_mesh_cli_tool ./nano_mesh_cli_tool```
+5. Now you can use it with ```./nano_mesh_cli_tool --help```
+
 # Usage:
 ## Send message to device 3 from computer which pretends to be device 1. Send does not require a response from receiving device.
 ```
