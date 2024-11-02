@@ -1,12 +1,19 @@
 [package]
-name = "nano_mesh_cli_tool"
-version = "0.1.0"
+name = "embedded-nano-mesh-cli-tool"
+version = "1.1.4"
+authors = ["Yevhen Shevchenko (boshtannik) <boshtannik@gmail.com>"]
 edition = "2021"
+description = "Command line utility to interact with embedded-nano-mesh network trough shell"
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/boshtannik/embedded-nano-mesh-cli-tool/"
+keywords = ["mesh", "protocol", "network", "embedded", "cli"]
+categories = ["network-programming", "command-line-utilities"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-embedded-nano-mesh = "0.1.8"
-platform-serial-linux = "1.0.1"
-platform-millis-linux = "1.0.0"
+embedded-nano-mesh = "1.1.4"
+platform-serial-linux = "1.0.2"
+platform-millis-linux = "2.0.0"
 clap = { version = "4.4", features = ["derive"] }
