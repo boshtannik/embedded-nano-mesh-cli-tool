@@ -17,7 +17,8 @@ pub const FROM_ADDRESS_HELP_MSG: &str = "From address.\n";
 pub const LISTEN_PERIOD_HELP_MSG: &str = concat!(
     "Each device listens for this period of time before speaking.\n",
     "This parameter configures for how long the device will listen.\n",
-    "Measured in milliseconds.\n"
+    "Measured in milliseconds. This is made in order to prevent device\n",
+    "to send messages one by one sequentially with no time gaps between them.\n"
 );
 pub const RECEIVE_TIMEOUT_HELP_MSG: &str = concat!(
     "Each device listens ether for it's own specified period of time.\n",

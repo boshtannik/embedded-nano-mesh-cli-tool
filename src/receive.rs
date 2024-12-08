@@ -1,10 +1,12 @@
 use super::constants;
 use clap::Parser;
-use embedded_nano_mesh::{ms, ExactAddressType, GeneralAddressType, Node, NodeConfig};
+use embedded_nano_mesh::{
+    ms, ExactAddressType, GeneralAddressType, Node, NodeConfig, PacketDataBytes,
+};
 use platform_millis_linux::{LinuxMillis, PlatformMillis};
 use platform_serial_linux::LinuxSerial;
 
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Clone)]
 pub struct ReceiveArgs {
     #[clap(
         short = 'a',
@@ -31,6 +33,21 @@ pub struct ReceiveArgs {
         help = constants::PORT_HELP_MSG
     )]
     pub port: String,
+    pub work_mode: WorkMode,
+    pub output_mode: OutputMode,
+}
+
+#[derive(clap::ValueEnum, Debug, Clone, PartialEq, Eq)]
+pub enum OutputMode {
+    FullData,
+    DataOnly,
+}
+
+#[derive(clap::ValueEnum, Debug, Clone, PartialEq, Eq)]
+pub enum WorkMode {
+    ExitOnReceive,
+    ExitOnTimeout,
+    Forever,
 }
 
 pub fn process_receive(args: ReceiveArgs) {
@@ -42,33 +59,89 @@ pub fn process_receive(args: ReceiveArgs) {
     let exit_time = LinuxMillis::millis() + args.timeout as ms;
 
     loop {
-        let current_time = LinuxMillis::millis();
-        if current_time >= exit_time {
-            std::process::exit(1);
-        }
-
         let _ = node.update::<LinuxMillis, LinuxSerial>();
-        let received_message = node.receive();
-
-        if let Some(packet) = received_message {
-            let target_addr: String;
-            println!(
-                "from_address: {}, to_address: {}, content: {}",
-                packet.source_device_identifier,
-                match packet.destination_device_identifier {
-                    GeneralAddressType::Broadcast => "Broadcast",
-                    GeneralAddressType::Exact(addr) => {
-                        target_addr = addr.get().to_string().clone();
-                        target_addr.as_str()
+        let packet = node.receive();
+        match packet {
+            None => continue,
+            Some(packet) => {
+                let destination_address =
+                    if packet.is_destination_reached(GeneralAddressType::Broadcast) {
+                        &"Broadcast".to_string()
+                    } else {
+                        &args.current_address.to_string()
+                    };
+                match args.work_mode {
+                    WorkMode::Forever => {
+                        print_packet(
+                            args.clone(),
+                            packet.data,
+                            packet.source_device_identifier.into(),
+                            destination_address,
+                        );
                     }
-                },
-                packet
-                    .data
-                    .into_iter()
-                    .map(|character| character as char)
-                    .collect::<String>()
-            );
-            std::process::exit(0);
+                    WorkMode::ExitOnReceive => {
+                        print_packet(
+                            args.clone(),
+                            packet.data,
+                            packet.source_device_identifier.into(),
+                            destination_address,
+                        );
+                        std::process::exit(0);
+                    }
+                    WorkMode::ExitOnTimeout => {
+                        print_packet(
+                            args.clone(),
+                            packet.data,
+                            packet.source_device_identifier.into(),
+                            destination_address,
+                        );
+                        let current_time = LinuxMillis::millis();
+                        if current_time >= exit_time {
+                            std::process::exit(1);
+                        }
+                    }
+                }
+            }
         }
+    }
+}
+
+#[inline]
+fn print_packet(
+    args: ReceiveArgs,
+    data: PacketDataBytes,
+    source_device_identifier: GeneralAddressType,
+    destination_address: &str,
+) {
+    print_out_data(
+        data,
+        source_device_identifier,
+        destination_address,
+        args.output_mode == OutputMode::FullData,
+    )
+}
+
+fn print_out_data(
+    data: PacketDataBytes,
+    source_device_identifier: GeneralAddressType,
+    destination_address: &str,
+    full_data: bool,
+) {
+    if full_data {
+        println!(
+            "from_address: {}, to_address: {}, content: {}",
+            <GeneralAddressType as Into<u8>>::into(source_device_identifier),
+            destination_address,
+            data.into_iter()
+                .map(|character| character as char)
+                .collect::<String>()
+        );
+    } else {
+        println!(
+            "{}",
+            data.into_iter()
+                .map(|character| character as char)
+                .collect::<String>()
+        );
     }
 }
