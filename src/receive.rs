@@ -1,10 +1,12 @@
+use std::time::Instant;
+
+use crate::serial_interface::LinuxInterfaceDriver;
+
 use super::constants;
 use clap::Parser;
 use embedded_nano_mesh::{
     ms, ExactAddressType, GeneralAddressType, Node, NodeConfig, PacketDataBytes,
 };
-use platform_millis_linux::{LinuxMillis, PlatformMillis};
-use platform_serial_linux::LinuxSerial;
 
 #[derive(Parser, Debug, Clone)]
 pub struct ReceiveArgs {
@@ -51,18 +53,40 @@ pub enum WorkMode {
 }
 
 pub fn process_receive(args: ReceiveArgs) {
+    let program_start_time = Instant::now();
+
     let mut node = Node::new(NodeConfig {
         device_address: args.current_address as ExactAddressType,
         listen_period: args.listen_period as ms,
     });
 
-    let exit_time = LinuxMillis::millis() + args.timeout as ms;
+    let mut serial = LinuxInterfaceDriver::new(
+        serialport::new("/dev/ttyUSB0", 9600)
+            .open_native()
+            .expect("Fail to open serial port"),
+    );
+
+    let exit_time = Instant::now()
+        .duration_since(program_start_time)
+        .as_millis() as ms
+        + args.timeout as ms;
 
     loop {
-        let _ = node.update::<LinuxMillis, LinuxSerial>();
-        let packet = node.receive();
-        match packet {
-            None => continue,
+        let current_time = Instant::now()
+            .duration_since(program_start_time)
+            .as_millis() as ms;
+
+        let _ = node.update(&mut serial, current_time);
+
+        match node.receive() {
+            None => match args.work_mode {
+                WorkMode::ExitOnTimeout => {
+                    if current_time >= exit_time {
+                        std::process::exit(1);
+                    }
+                }
+                _ => (),
+            },
             Some(packet) => {
                 let destination_address =
                     if packet.is_destination_reached(GeneralAddressType::Broadcast) {
@@ -95,9 +119,8 @@ pub fn process_receive(args: ReceiveArgs) {
                             packet.source_device_identifier.into(),
                             destination_address,
                         );
-                        let current_time = LinuxMillis::millis();
                         if current_time >= exit_time {
-                            std::process::exit(1);
+                            std::process::exit(0);
                         }
                     }
                 }

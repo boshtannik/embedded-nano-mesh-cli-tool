@@ -36,7 +36,6 @@ send_to_exact \
 user@user-debian:~/w/rust/arduino/nano_mesh_cli_tool$ ./nano_mesh_cli_tool \
 broadcast \
 --from-address=1 \
---to-address=3 \
 --listen-period=250 \
 --content="beep" \
 --timeout=1000 \

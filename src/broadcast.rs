@@ -1,8 +1,10 @@
+use std::time::Instant;
+
+use crate::serial_interface::LinuxInterfaceDriver;
+
 use super::constants;
 use clap::Parser;
 use embedded_nano_mesh::{ms, ExactAddressType, LifeTimeType, Node, NodeConfig, NodeString};
-use platform_millis_linux::{LinuxMillis, PlatformMillis};
-use platform_serial_linux::LinuxSerial;
 
 #[derive(Parser, Debug)]
 pub struct BroadcastArgs {
@@ -27,7 +29,7 @@ pub struct BroadcastArgs {
         required = true,
         help = constants::SEND_CONTENT_HELP_MSG
     )]
-    pub content: NodeString,
+    pub content: String,
 
     #[clap(short = 'o', long = "timeout", required = true, help = constants::SEND_TIMEOUT_HELP_MSG)]
     pub timeout: ms,
@@ -56,23 +58,36 @@ pub struct BroadcastArgs {
 }
 
 pub fn process_broadcast(args: BroadcastArgs) {
+    let program_start_time = Instant::now();
+
     let mut node = Node::new(NodeConfig {
         device_address: args.from_address as ExactAddressType,
         listen_period: args.listen_period as ms,
     });
 
+    let mut serial = LinuxInterfaceDriver::new(
+        serialport::new("/dev/ttyUSB0", 9600)
+            .open_native()
+            .expect("Fail to open serial port"),
+    );
+
     let _ = node.broadcast(
-        NodeString::from(args.content.as_str()).into_bytes(),
+        NodeString::from_iter(args.content.chars()).into_bytes(),
         args.lifetime as LifeTimeType,
     );
 
-    let exit_time = LinuxMillis::millis() + args.timeout as ms;
+    let exit_time = program_start_time
+        .duration_since(program_start_time)
+        .as_millis() as ms
+        + args.timeout as ms;
 
     loop {
-        let current_time = LinuxMillis::millis();
+        let current_time = Instant::now()
+            .duration_since(program_start_time)
+            .as_millis() as ms;
         if current_time >= exit_time {
             std::process::exit(0);
         }
-        let _ = node.update::<LinuxMillis, LinuxSerial>();
+        let _ = node.update(&mut serial, current_time);
     }
 }
