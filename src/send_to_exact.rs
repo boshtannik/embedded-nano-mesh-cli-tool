@@ -1,9 +1,9 @@
 use std::time::Instant;
 
 use super::constants;
-use crate::serial_interface::LinuxInterfaceDriver;
 use clap::Parser;
 use embedded_nano_mesh::{ms, ExactAddressType, LifeTimeType, Node, NodeConfig, NodeString};
+use embedded_nano_mesh_linux_io::*;
 
 #[derive(Parser, Debug)]
 pub struct SendToExactArgs {
@@ -62,7 +62,7 @@ pub fn process_send(args: SendToExactArgs) {
         listen_period: args.listen_period as ms,
     });
 
-    let mut serial = LinuxInterfaceDriver::new(
+    let mut serial = LinuxIO::new(
         serialport::new("/dev/ttyUSB0", 9600)
             .open_native()
             .expect("Fail to open serial port"),

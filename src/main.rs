@@ -3,7 +3,6 @@ mod constants;
 mod ping;
 mod receive;
 mod send_to_exact;
-mod serial_interface;
 mod transaction;
 
 use broadcast::process_broadcast;
